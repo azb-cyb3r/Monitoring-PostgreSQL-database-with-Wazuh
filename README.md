@@ -375,5 +375,6 @@ Wazuh Alert
 Wazuh Dashboard
 ```
 
-Capture screenshots of the PostgreSQL logs and corresponding Wazuh alerts and place them in the `screenshots/` directory of this repository.
+
+
 
