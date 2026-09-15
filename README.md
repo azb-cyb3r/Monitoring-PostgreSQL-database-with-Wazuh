@@ -68,8 +68,8 @@ Locate `log_statement` and configure it as:
 
 ```text
 log_statement = 'mod'
-```<img width="1460" height="737" alt="dbmod" src="https://github.com/user-attachments/assets/fbb99c60-7b5c-486c-8ab8-836a0d39a004" />
-
+```
+<img width="1460" height="737" alt="dbmod" src="https://github.com/user-attachments/assets/fbb99c60-7b5c-486c-8ab8-836a0d39a004" />
 
 This enables logging of database modification statements, including operations such as:
 
