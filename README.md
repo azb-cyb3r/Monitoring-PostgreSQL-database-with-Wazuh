@@ -380,9 +380,12 @@ Wazuh Alert
     ↓
 Wazuh Dashboard
 ```
-See alerts in Wazuh Dashboard
+PostgreSQL database activities detected in the Wazuh Dashboard.
+
 <img width="1917" height="732" alt="db" src="https://github.com/user-attachments/assets/b8dfe886-6b14-47cb-8059-385f4c672d0e" />
-Let's inside of log
+
+Detailed Wazuh alert showing successful detection of a PostgreSQL database creation event (Rule ID: 100081).
+
 <img width="955" height="846" alt="db2" src="https://github.com/user-attachments/assets/cf566915-922b-4ddd-80af-afae1e9ba1f2" />
 
 
