@@ -1,156 +1,378 @@
-# PostgreSQL Database Monitoring with Wazuh
+## Configuration
 
-## 📌 Summary
+This section describes the configuration of PostgreSQL monitoring with Wazuh. A PostgreSQL database is deployed on an Ubuntu endpoint, PostgreSQL activity logging is enabled, and the Wazuh agent is configured to collect and forward PostgreSQL logs to the Wazuh server. Custom Wazuh decoders and rules are then configured to identify database activities such as database/table creation, deletion, insertion, and updates.
 
-This project demonstrates the monitoring of PostgreSQL database activity using **Wazuh SIEM**. PostgreSQL logs are collected and analyzed by Wazuh to provide visibility into authentication activity, database errors, and potentially suspicious events.
+---
 
-## 🎯 Objectives
+## Ubuntu Endpoint
 
-* Integrate PostgreSQL with Wazuh
-* Collect PostgreSQL security logs
-* Monitor database authentication activity
-* Detect failed authentication attempts
-* Create custom Wazuh detection rules
-* Investigate security alerts
+### 1. Configure the PostgreSQL Repository
 
-## 🛠️ Technologies
+Add the PostgreSQL APT repository:
 
-* **Wazuh SIEM**
-* **PostgreSQL**
-* **Ubuntu Linux**
-* **Wazuh Agent**
-* **Wazuh Dashboard**
-
-## 🏗️ Architecture
-
-```text
-┌──────────────────┐
-│    PostgreSQL    │
-│     Database     │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ PostgreSQL Logs  │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│   Wazuh Agent    │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│   Wazuh Manager  │
-│                  │
-│ Decoders + Rules │
-└────────┬─────────┘
-         │
-         ▼
-┌──────────────────┐
-│ Wazuh Dashboard  │
-│     Alerts       │
-└──────────────────┘
+```bash
+sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
 ```
 
-## 🔍 Monitoring
+Import the PostgreSQL repository signing key:
 
-The project monitors PostgreSQL events including:
+```bash
+sudo wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+```
 
-* Failed authentication attempts
-* Successful authentication
-* Invalid database users
-* Database connection activity
-* PostgreSQL errors
-* Suspicious authentication behavior
+### 2. Update Packages
 
-## ⚙️ Log Collection
+```bash
+sudo apt-get update
+```
 
-PostgreSQL generates database activity logs which are collected by the Wazuh agent and forwarded to the Wazuh manager for analysis.
+### 3. Install PostgreSQL
+
+```bash
+sudo apt-get -y install postgresql
+```
+
+### 4. Locate the PostgreSQL Configuration File
+
+Run:
+
+```bash
+sudo -u postgres psql -c 'SHOW config_file;'
+```
+
+Example output:
 
 ```text
-PostgreSQL Event
-       ↓
-PostgreSQL Log
-       ↓
+              config_file
+-----------------------------------------
+ /etc/postgresql/16/main/postgresql.conf
+(1 row)
+```
+
+The PostgreSQL configuration file in this example is:
+
+```text
+/etc/postgresql/16/main/postgresql.conf
+```
+
+### 5. Enable PostgreSQL Statement Logging
+
+Open the PostgreSQL configuration file:
+
+```bash
+sudo nano /etc/postgresql/16/main/postgresql.conf
+```
+
+Locate `log_statement` and configure it as:
+
+```text
+log_statement = 'mod'
+```
+
+This enables logging of database modification statements, including operations such as:
+
+* `CREATE`
+* `DROP`
+* `INSERT`
+* `UPDATE`
+
+### 6. Restart PostgreSQL
+
+Apply the configuration changes:
+
+```bash
+sudo systemctl restart postgresql
+```
+
+### 7. Locate the PostgreSQL Log File
+
+Run:
+
+```bash
+sudo pg_lsclusters
+```
+
+Example output:
+
+```text
+Ver Cluster Port Status Owner    Data directory              Log file
+16  main    5432 online postgres /var/lib/postgresql/16/main /var/log/postgresql/postgresql-16-main.log
+```
+
+The PostgreSQL log file is:
+
+```text
+/var/log/postgresql/postgresql-16-main.log
+```
+
+---
+
+## Configure Wazuh Agent
+
+Edit the Wazuh agent configuration:
+
+```bash
+sudo nano /var/ossec/etc/ossec.conf
+```
+
+Add the following configuration inside the `<ossec_config>` block:
+
+```xml
+<!-- Collect PostgreSQL logs -->
+<localfile>
+    <log_format>syslog</log_format>
+    <location>/var/log/postgresql/postgresql-16-main.log</location>
+</localfile>
+```
+
+This configuration instructs the Wazuh agent to monitor the PostgreSQL log file and forward the collected events to the Wazuh manager.
+
+Restart the Wazuh agent:
+
+```bash
+sudo systemctl restart wazuh-agent
+```
+
+---
+
+# Wazuh Server
+
+The Wazuh server requires custom decoders and rules to properly identify PostgreSQL database activities.
+
+## 1. Create the PostgreSQL Decoder
+
+Create the decoder file:
+
+```bash
+sudo touch /var/ossec/etc/decoders/postgresql_decoders.xml
+```
+
+Edit the file:
+
+```bash
+sudo nano /var/ossec/etc/decoders/postgresql_decoders.xml
+```
+
+Add the PostgreSQL decoders:
+
+```xml
+<decoder name="postgresql">
+    <prematch type="pcre2">(?i)statement:</prematch>
+</decoder>
+
+<decoder name="postgresql_child">
+    <parent>postgresql</parent>
+    <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s+\S+)@\S+\s+LOG:\s+statement:\s+create\s+database\s+([^"\s;]+)</regex>
+    <order>db_user,database</order>
+</decoder>
+
+<decoder name="postgresql_child">
+    <parent>postgresql</parent>
+    <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s+\S+)@\S+\s+LOG:\s+statement:\s+drop\s+database\s+([^"\s;]+)</regex>
+    <order>db_user,database</order>
+</decoder>
+
+<decoder name="postgresql_child">
+    <parent>postgresql</parent>
+    <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s+\S+)@\S+\s+LOG:\s+statement:\s+create\s+table\s+([^"\s;]+)</regex>
+    <order>db_user,db_table</order>
+</decoder>
+
+<decoder name="postgresql_child">
+    <parent>postgresql</parent>
+    <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s+\S+)@\S+\s+LOG:\s+statement:\s+drop\s+table\s+([^"\s;]+)</regex>
+    <order>db_user,db_table</order>
+</decoder>
+
+<decoder name="postgresql_child">
+    <parent>postgresql</parent>
+    <regex type="pcre2">(?i)\d+-\d+-\d+\s+\S+\s+\[\d+\]\s+(\S+\s+\S+)@\S+\s+LOG:\s+statement:\s+insert\s+into\s+([^"\s;]+)</regex>
+    <order>db_user,db_table</order>
+</decoder>
+
+<decoder name="postgresql_child">
+    <parent>postgresql</parent>
+    <regex type="pcre2">(?i)\d+-\d+-\d+\s+\S+\s+\[\d+\]\s+(\S+\s+\S+)@\S+\s+LOG:\s+statement:\s+update\s+([^"\s;]+)</regex>
+    <order>db_user,db_table</order>
+</decoder>
+```
+
+> **Note:** The decoder patterns should match the exact PostgreSQL log format generated by your installed PostgreSQL version. Test the decoders with your real log entries before using them in production.
+
+---
+
+# 2. Create Wazuh Detection Rules
+
+Create the rules file:
+
+```bash
+sudo touch /var/ossec/etc/rules/postgresql_rules.xml
+```
+
+Edit it:
+
+```bash
+sudo nano /var/ossec/etc/rules/postgresql_rules.xml
+```
+
+Add the detection rules:
+
+```xml
+<group name="postgresql,">
+
+    <!-- Detect PostgreSQL logs without generating an alert -->
+    <rule id="100080" level="0">
+        <decoded_as>postgresql</decoded_as>
+        <description>No alerts.</description>
+    </rule>
+
+    <!-- Database creation -->
+    <rule id="100081" level="4">
+        <if_sid>100080</if_sid>
+        <match type="pcre2">(?i)create database</match>
+        <description>
+            A database $(database) has been created by the user $(db_user).
+        </description>
+    </rule>
+
+    <!-- Database deletion -->
+    <rule id="100082" level="6">
+        <if_sid>100080</if_sid>
+        <match type="pcre2">(?i)drop database</match>
+        <description>
+            A database $(database) has been deleted by the user $(db_user).
+        </description>
+        <mitre>
+            <id>T1485</id>
+        </mitre>
+    </rule>
+
+    <!-- Table creation -->
+    <rule id="100083" level="4">
+        <if_sid>100080</if_sid>
+        <match type="pcre2">(?i)create table</match>
+        <description>
+            A table $(db_table) has been created by the user $(db_user).
+        </description>
+    </rule>
+
+    <!-- Table deletion -->
+    <rule id="100084" level="6">
+        <if_sid>100080</if_sid>
+        <match type="pcre2">(?i)drop table</match>
+        <description>
+            A table $(db_table) has been deleted by the user $(db_user).
+        </description>
+        <mitre>
+            <id>T1485</id>
+        </mitre>
+    </rule>
+
+    <!-- INSERT operation -->
+    <rule id="100085" level="4">
+        <if_sid>100080</if_sid>
+        <match type="pcre2">(?i)insert into</match>
+        <description>
+            New values have been inserted into table $(db_table) by user $(db_user).
+        </description>
+        <mitre>
+            <id>T1565.001</id>
+        </mitre>
+    </rule>
+
+    <!-- UPDATE operation -->
+    <rule id="100086" level="4">
+        <if_sid>100080</if_sid>
+        <match type="pcre2">(?i)update</match>
+        <description>
+            Table $(db_table) has been updated by the user $(db_user).
+        </description>
+        <mitre>
+            <id>T1565.001</id>
+        </mitre>
+    </rule>
+
+</group>
+```
+
+---
+
+# 3. Rule Description
+
+| Rule ID  | Level | Detection                 |
+| -------- | ----: | ------------------------- |
+| `100080` |     0 | PostgreSQL log — no alert |
+| `100081` |     4 | Database created          |
+| `100082` |     6 | Database deleted          |
+| `100083` |     4 | Table created             |
+| `100084` |     6 | Table deleted             |
+| `100085` |     4 | Data inserted             |
+| `100086` |     4 | Table updated             |
+
+The level `0` rule acts as a parent/base rule and does not generate a dashboard alert. The subsequent rules generate alerts when specific PostgreSQL operations are detected.
+
+---
+
+# 4. Restart Wazuh Manager
+
+After adding the decoder and rules, restart the Wazuh manager:
+
+```bash
+sudo systemctl restart wazuh-manager
+```
+
+You can also verify the configuration before restarting:
+
+```bash
+sudo /var/ossec/bin/wazuh-analysisd -t
+```
+
+If the configuration is valid, generate PostgreSQL activity and verify that the events appear in Wazuh.
+
+---
+
+# 5. Testing
+
+After completing the configuration, perform controlled database operations such as:
+
+```sql
+CREATE DATABASE testdb;
+
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50)
+);
+
+INSERT INTO users (username)
+VALUES ('testuser');
+
+UPDATE users
+SET username = 'updateduser'
+WHERE id = 1;
+
+DROP TABLE users;
+
+DROP DATABASE testdb;
+```
+
+Then verify:
+
+```text
+PostgreSQL
+    ↓
+PostgreSQL log
+    ↓
 Wazuh Agent
-       ↓
+    ↓
 Wazuh Manager
-       ↓
+    ↓
 Decoder
-       ↓
-Detection Rule
-       ↓
+    ↓
+Custom Rule
+    ↓
 Wazuh Alert
+    ↓
+Wazuh Dashboard
 ```
 
-## 🚨 Detection
-
-Custom Wazuh rules can be used to identify security-relevant PostgreSQL events.
-
-Example use case:
-
-**Multiple failed PostgreSQL authentication attempts**
-
-```text
-Failed Login
-     ↓
-Failed Login
-     ↓
-Failed Login
-     ↓
-Wazuh Detection Rule
-     ↓
-Security Alert
-```
-
-## 🔎 Investigation
-
-When an alert is generated, the following information can be analyzed:
-
-* Timestamp
-* Username
-* Source information
-* Database name
-* Authentication result
-* Event/message
-* Number of failed attempts
-
-The collected information can be used to determine whether the activity is normal or potentially malicious.
-
-## 📸 Evidence
-
-### PostgreSQL Logs
-
-![PostgreSQL Logs](screenshots/postgresql-logs.png)
-
-### Wazuh Alert
-
-![Wazuh Alert](screenshots/wazuh-alert.png)
-
-### Wazuh Dashboard
-
-![Wazuh Dashboard](screenshots/wazuh-dashboard.png)
-
-## 📊 Results
-
-* PostgreSQL logs successfully collected by Wazuh
-* Database authentication activity monitored
-* Security events displayed in the Wazuh dashboard
-* Custom detection rules tested
-* PostgreSQL events investigated from a SOC perspective
-
-## 🧠 Skills Demonstrated
-
-* SIEM implementation
-* PostgreSQL monitoring
-* Linux log analysis
-* Wazuh configuration
-* Detection engineering
-* Security event investigation
-* Alert analysis
-* SOC monitoring
-
-## 🔐 Disclaimer
-
-All testing was performed in a controlled laboratory environment using systems owned or authorized for security testing.
+Capture screenshots of the PostgreSQL logs and corresponding Wazuh alerts and place them in the `screenshots/` directory of this repository.
