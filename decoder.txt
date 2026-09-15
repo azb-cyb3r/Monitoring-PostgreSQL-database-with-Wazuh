@@ -1,0 +1,63 @@
+<decoder name="postgresql">
+  <prematch type="pcre2">(?i)statement:</prematch>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S+)@\S+\s+LOG:\s+statement:\s+create\s+database\s+([^"\s;]+)</regex>
+  <order>db_user,database</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S+)@\S+\s+LOG:\s+statement:\s+create\s+database\s+"([^;]+)"</regex>
+  <order>db_user,database</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+drop\s+database\s+([^"\s;]+)</regex>
+  <order>db_user,database</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+drop\s+database\s+"([^;]+)"</regex>
+  <order>db_user,database</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+create\s+table\s+([^"\s;]+)</regex>
+  <order>db_user,db_table</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+create\s+table\s+"([^;]+)"</regex>
+       <order>db_user,db_table</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+drop\s+table\s+([^"\s;]+)</regex>
+  <order>db_user,db_table</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+drop\s+table\s+"([^;]+)"</regex>
+  <order>db_user,db_table</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+insert\s+into\s+([^"\s;]+)</regex>
+       <order>db_user,db_table</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+insert\s+into\s+"([^;]+)"</regex>
+  <order>db_user,db_table</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+update\s+([^"\s;]+)</regex>
+  <order>db_user,db_table</order>
+</decoder>
+<decoder name="postgresql_child">
+  <parent>postgresql</parent>
+  <regex type="pcre2">(?i)\d+-\d+-\d+\s+\d+:\d+:\d+.\d+\s+\S+\s+\[\d+\]\s+(\S+\s*\S*)@\S+\s+LOG:\s+statement:\s+update\s+"([^;]+)"</regex>
+  <order>db_user,db_table</order>
+</decoder>
